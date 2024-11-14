@@ -106,13 +106,23 @@ public partial class DebridMediaManagerCrawler(
 
         var decodedJson = LZString.DecompressFromEncodedURIComponent(encodedJson.Value);
 
-        var json = JsonDocument.Parse(decodedJson);
-        
-        var torrents = await json.RootElement.EnumerateArray()
-            .ToAsyncEnumerable()
-            .Select(ParsePageContent)
-            .Where(t => t is not null)
-            .ToListAsync();
+        List<ExtractedDMMContent?> torrents = new();
+        try
+        {
+            var json = JsonDocument.Parse(decodedJson);
+
+            torrents = await json.RootElement.EnumerateArray()
+                .ToAsyncEnumerable()
+                .Select(ParsePageContent)
+                .Where(t => t is not null)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Failed to parse JSON {decodedJson} for {Name}: {Exception}", decodedJson, name, ex);
+            await Storage.MarkPageAsIngested(filenameOnly); // Consider if you want to mark as ingested on error
+            return [];
+        }
 
         if (torrents.Count == 0)
         {
